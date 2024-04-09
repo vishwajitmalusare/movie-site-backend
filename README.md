@@ -1,0 +1,1 @@
+This is the movie details website. Build using NodeJS and ReactJS with MongoDB database. 
