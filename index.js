@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser'); // Import body-parser
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 const app = express();
 app.use(cors());
@@ -10,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 const userRoutes = require('./routes/userRoutes');
 const User = require('./modal/User');
 const router = express.Router();
+const secretKey = 'vish123'
 
 // MongoDB Connection
 mongoose.connect('mongodb+srv://vishwajeetmalusare:IIalvM8yZrZAPDVX@cluster0.m7cfjhl.mongodb.net/', {
@@ -19,19 +22,11 @@ mongoose.connect('mongodb+srv://vishwajeetmalusare:IIalvM8yZrZAPDVX@cluster0.m7c
 .then(() => console.log('MongoDB connected'))
 .catch(err => console.log(err))
 
-// Routes
-app.get('/', (req, res) => {
-    res.send('Hello World!');
-});
-
 // Register Route
 router.post('/register', async (req, res) => {
     try {
         // Your registration logic here
-        const first_name = req.body.first_name;
-        const last_name = req.body.last_name;
-        const email = req.body.email;
-        const password = req.body.password;
+        const { first_name, last_name, email, password } = req.body;
 
         //Checking all files have data
         if (!first_name || !last_name || !email || !password) {
@@ -44,23 +39,71 @@ router.post('/register', async (req, res) => {
             return res.status(400).send('Email is already registered');
         }
 
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
         //Registration
-        const newUser = new User({ first_name, last_name, email, password });
+        const newUser = new User({ first_name, last_name, email, password: hashedPassword });
         await newUser.save();
-        res.status(200).send('User registered successfully');
+
+        const token = jwt.sign({ userId: newUser._id }, secretKey)
+        // res.status(200).send('User registered successfully');
+        res.status(200).send({ token });
     } catch (error) {
         console.error(error);
         res.status(500).send('Internal Server Error');
     }
 });
 
+//Login Route
+router.post('/login', async (req,res) => {
+    try {
+        const { email, password } =req.body;
+
+        const user = await User.findOne({ email });
+        if(!user) {
+            return res.status(400).send('Invalid Email');
+        }
+
+        const validPassword = await bcrypt.compare(password, user.password);
+        if ( !validPassword ) {
+            return res.status(400).send('Invalid Password');
+        }
+
+        const token = jwt.sign({ userId: user._id}, secretKey);
+        res.status(200).send({ token });
+    } catch(error) {
+        console.log("Error in login :- ",error);
+        res.status(500).send('Internal Server Error')
+    }
+});
+
+//Middleware to verify token
+function verifyToken(req, res, next) {
+    const token = req.headers['authoriztion'];
+    if(!token) {
+        return res.status(401).send('Access Denied');
+    }
+    try{
+        const decoded = jwt.verify(token, secretKey);
+        req.userId = decoded.userId;
+        next();
+    }catch(error) {
+        console.log("Error in Verify Token", error);
+        res.status(401).send('Invalid token');
+    }
+}
+
+//Protected route
+router.get('/protected', verifyToken, (req, res) => {
+    res.status(200).send('This is a protected rout');
+});
 // Mount router on the app
 app.use('/api', router);
+// Use user routes
+app.use('/api', userRoutes);
 
 // Start server
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
-
-// Use user routes
-app.use('/api', userRoutes);
