@@ -56,7 +56,7 @@ router.post('/register', async (req, res) => {
 });
 
 //Login Route
-router.post('/login', async (req,res) => {
+router.post('/login', async (req, res) => {
     try {
         const { email, password } =req.body;
 
@@ -74,13 +74,13 @@ router.post('/login', async (req,res) => {
         res.status(200).send({ token });
     } catch(error) {
         console.log("Error in login :- ",error);
-        res.status(500).send('Internal Server Error')
+        res.status(500).send('Internal Server Error');
     }
 });
 
 //Middleware to verify token
 function verifyToken(req, res, next) {
-    const token = req.headers['authoriztion'];
+    const token = req.headers['authorization'];
     if(!token) {
         return res.status(401).send('Access Denied');
     }
@@ -94,9 +94,23 @@ function verifyToken(req, res, next) {
     }
 }
 
+router.get('/userdetails', verifyToken, async (req, res) => {
+    try {
+        const userId = req.userId;
+        const user = await User.findById(userId).select('-password'); //Exclude password field
+        
+        if(!user) {
+            return res.status(404).send('User not found');
+        }
+        res.status(200).json(user);
+    } catch(error) {
+        console.log('error: ', error);
+        res.status(500).send('Internal Server Error'); 
+    }
+})
 //Protected route
 router.get('/protected', verifyToken, (req, res) => {
-    res.status(200).send('This is a protected rout');
+    res.status(200).send('This is a protected route');
 });
 // Mount router on the app
 app.use('/api', router);
