@@ -78,6 +78,34 @@ router.post('/login', async (req, res) => {
     }
 });
 
+// Blacklisted tokens array to store revoked tokens
+const blacklistedTokens = [];
+//Logout route
+router.post('/logout', (req, res) => {
+    try{
+        const token = req.headers['authorization'];
+        if(!token) {
+            return res.status(401).send('Access Denied');
+        }
+
+        //Add the token to the blacklist
+        blacklistedTokens.push(token);
+        res.status(200).send('Logged out Successfully');
+    }catch(error){
+        console.log('error: ', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+//Check tooken is blacklisted
+function checkBlacklist(req, res, next) {
+    const token = req.headers['authorization'];
+    if(!token) {
+        return res.status(401).send('Access Denied');
+    }
+    next();
+}
+
 //Middleware to verify token
 function verifyToken(req, res, next) {
     const token = req.headers['authorization'];
@@ -94,6 +122,7 @@ function verifyToken(req, res, next) {
     }
 }
 
+//Get user route
 router.get('/userdetails', verifyToken, async (req, res) => {
     try {
         const userId = req.userId;
@@ -108,8 +137,9 @@ router.get('/userdetails', verifyToken, async (req, res) => {
         res.status(500).send('Internal Server Error'); 
     }
 })
+
 //Protected route
-router.get('/protected', verifyToken, (req, res) => {
+router.get('/protected',checkBlacklist, verifyToken, (req, res) => {
     res.status(200).send('This is a protected route');
 });
 // Mount router on the app
